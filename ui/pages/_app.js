@@ -56,14 +56,35 @@ function MyApp({ Component, pageProps }) {
       defaultTtlSeconds: 60
     });
 
+    const topics = new TopicClient({
+      configuration: Configurations.Browser.latest(),
+      credentialProvider: CredentialProvider.fromString({ authToken: token })
+    });
+
     setCacheClient(client);
+    setTopicClient(topics);
     localStorage.setItem('authToken', token);
+  };
+
+  const refreshSDKs = async (passcode) => {
+    if (!passcode) {
+      const sessionPasscode = sessionStorage?.getItem('passcode');
+      passcode = sessionPasscode;
+    }
+
+    if (sessionPasscode) {
+      const response = await API.post('Public', `/${sessions}`, {
+        body: { passcode: sessionPasscode }
+      });
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('expiresAt', response.exp);
+    }
   };
 
   return (
     <AmplifyProvider>
       <Authenticator hideSignUp variation="modal">
-        <MomentoContext.Provider value={{ token, refreshToken }}>
+        <MomentoContext.Provider value={{ cacheClient, topicClient, refreshSDKs }}>
           <Flex direction="column" width="100%">
             <Header />
             <Component {...pageProps} />
