@@ -1,0 +1,116 @@
+openapi: 3.0.0
+info:
+  title: Public chat API
+  description: |
+    API for public access
+  version: 1.0.0
+
+x-amazon-apigateway-request-validators:
+  Validate All:
+    validateRequestParameters: true
+    validateRequestBody: true
+x-amazon-apigateway-gateway-responses:
+  BAD_REQUEST_BODY:
+    statusCode: 400
+    responseTemplates:
+      application/json: '{ "message": "$context.error.validationErrorString" }'
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+
+tags:
+  - name: Chat
+
+paths:
+  /sessions:
+    post:
+      summary: Joins a session
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                passcode:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+              required:
+                - passcode
+      responses:
+        200:
+          description: Profile found and session can be joined
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionToken'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${JoinChatFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  schemas:
+    SessionToken:
+      type: object
+      properties:
+        token:
+          type: string
+        exp:
+          type: number
+      required:
+        - token
+        - exp
+
+  responses:
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: Invalid passcode
+
+    BadRequest:
+      description: The input format was incorrect
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: The input format is incorrect
+
+    UnknownError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                description: Unknown error message
+                example: An unexpected error occurred.
+

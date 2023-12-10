@@ -1,0 +1,450 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Santa Chat
+
+Parameters:
+  DomainName:
+    Type: String
+  DefaultCache:
+    Type: String
+    Default: santa
+  CORSOrigin:
+    Type: String
+    Default: '*'
+  HostedZoneId:
+    Type: String
+  MomentoApiKey:
+    Type: String
+    NoEcho: true
+  WebhookSecret:
+    Type: String
+    NoEcho: true
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    Tracing: Active
+    Timeout: 3
+    MemorySize: 1024
+    Handler: index.handler
+    Environment:
+      Variables:
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+        CORS_ORIGIN: !Ref CORSOrigin
+  Api:
+    Cors:
+      AllowMethods: "'POST,GET,PUT,OPTIONS'"
+      AllowHeaders: "'Content-Type'"
+      AllowOrigin: "'*'"
+
+Resources:
+  ChatTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+        - AttributeName: sort
+          AttributeType: S
+      GlobalSecondaryIndexes:
+        - IndexName: types
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+            - AttributeName: sort
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: ContentUserPoolClient
+      UserPoolId: !Ref CognitoUserPool
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - http://localhost:3000
+        - http://localhost:3000/oauth2/idpresponse
+        - !Sub https://${DomainName}
+        - !Sub https://${DomainName}/oauth2/idpresponse
+        - !Sub https://auth.${DomainName}
+        - !Sub https://auth.${DomainName}/oauth2/idpresponse
+      LogoutURLs:
+        - http://localhost:3000/logout
+        - !Sub https://${DomainName}/logout
+      AllowedOAuthFlowsUserPoolClient: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  CognitoIdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: ContentIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref CognitoUserPoolClient
+          ProviderName: !Sub cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+
+  CognitoAuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: 'Allow'
+          Principal:
+            Federated: 'cognito-identity.amazonaws.com'
+          Action: 'sts:AssumeRoleWithWebIdentity'
+          Condition:
+            StringEquals:
+              'cognito-identity.amazonaws.com:aud': !Ref CognitoIdentityPool
+            'ForAnyValue:StringLike':
+              'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+      - PolicyName: CognitoAuthorizedPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action: execute-api:Invoke
+            Resource: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ChatAdminApi}/v1/*/*
+
+  CognitoIdentityPoolRoles:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref CognitoIdentityPool
+      Roles:
+        authenticated: !GetAtt CognitoAuthenticatedRole.Arn
+
+  AuthCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub auth.${DomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub auth.${DomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: SantaChatUserPool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      Domain: !Sub auth.${DomainName}
+      CustomDomainConfig:
+        CertificateArn: !Ref AuthCertificate
+
+  CustomDomainDnsRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub auth.${DomainName}
+      ResourceRecords:
+        - !GetAtt CognitoUserPoolDomain.CloudFrontDistribution
+      TTL: 300
+      Type: CNAME
+
+  ChatAdminApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      TracingEnabled: true
+      StageName: v1
+      Auth:
+        Authorizers:
+          CognitoAuth:
+            UserPoolArn: !GetAtt CognitoUserPool.Arn
+        DefaultAuthorizer: CognitoAuth
+        AddDefaultAuthorizerToCorsPreflight: false
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./openapi.yaml
+
+  ChatPublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      TracingEnabled: true
+      StageName: v1
+      DefinitionBody:
+        Fn::Transform:
+          Name: AWS::Include
+          Parameters:
+            Location: ./openapi-public.yaml
+
+  APICertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub api.${DomainName}
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub api.${DomainName}
+          HostedZoneId: !Ref HostedZoneId
+
+  ApiGatewayDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !Sub api.${DomainName}
+      CertificateArn: !Ref APICertificate
+
+  AdminApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Ref ChatAdminApi
+      Stage: v1
+      BasePath: admin
+
+  PublicApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName: !Ref ApiGatewayDomainName
+      RestApiId: !Ref ChatPublicApi
+      Stage: v1
+
+  Route53RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub api.${DomainName}
+      Type: CNAME
+      TTL: 3600
+      ResourceRecords:
+        - !GetAtt ApiGatewayDomainName.DistributionDomainName
+
+  GetProfilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/get-profiles
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !GetAtt ChatTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatAdminApi
+            Path: /profiles
+            Method: GET
+
+  AddProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/add-profile
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Put
+              Resource: !GetAtt ChatTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatAdminApi
+            Path: /profiles
+            Method: POST
+
+  SetCredentialsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/set-credentials
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: ssm:PutParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/santa-chat/*
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatAdminApi
+            Path: /credentials
+            Method: PUT
+
+  TalkToSantaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/talk-to-santa
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Ref MomentoSecret
+            - Effect: Allow
+              Action: events:PutEvents
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Environment:
+        Variables:
+          SECRET_ID: !Ref MomentoSecret
+      FunctionUrlConfig:
+        AuthType: NONE
+
+  SendChatMessageFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions\send-chat-message
+      Timeout: 120
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${ChatTable.Arn}/index/types
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt ChatTable.Arn
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref MomentoSecret
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource: '*'
+      Environment:
+        Variables:
+          SECRET_ID: !Ref MomentoSecret
+          CACHE_NAME: !Ref DefaultCache
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        EventBridge:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              detail-type:
+                - New Chat Message
+              source:
+                - webhook
+
+  JoinChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/join-chat
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref MomentoSecret
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub ${ChatTable.Arn}/index/types
+      Environment:
+        Variables:
+          SECRET_ID: !Ref MomentoSecret
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatPublicApi
+            Path: /sessions
+            Method: POST
+
+  ResetChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions\reset-chat
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt ChatTable.Arn
+            - Effect: Allow
+              Action:  secretsmanager:GetSecretValue
+              Resource: !Ref MomentoSecret
+      Environment:
+        Variables:
+          SECRET_ID: !Ref MomentoSecret
+          CACHE_NAME: !Ref DefaultCache
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatAdminApi
+            Path: /profiles/{passcode}/sessions
+            Method: DELETE
+
+  MomentoSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      SecretString:
+        Fn::Sub:
+          - |-
+            {
+              "momento": "${MomentoApiKey}",
+              "webhook": "${WebhookSecret}"
+            }
+          - MomentoApiKey: !Ref MomentoApiKey
+            WebhookSecret: !Ref WebhookSecret
+
+Outputs:
+  WebhookUrl:
+    Description: Url used for Momento Webhook
+    Value: !GetAtt TalkToSantaFunctionUrl.FunctionUrl
+  UserPoolClientId:
+    Description: Id of user pool client
+    Value: !Ref CognitoUserPoolClient
+  IdentityPoolId:
+    Description: Id of the identity pool
+    Value: !Ref CognitoIdentityPool
+  UserPoolId:
+    Description: Id of the user pool
+    Value: !Ref CognitoUserPool

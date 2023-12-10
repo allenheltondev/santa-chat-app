@@ -1,0 +1,17 @@
+{
+  "name": "talk-to-santa",
+  "version": "1.0.0",
+  "description": "Communication function to talk to Santa",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@aws-sdk/client-eventbridge": "^3.465.0"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/parameters": "^1.17.0"
+  }
+}

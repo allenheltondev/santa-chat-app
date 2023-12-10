@@ -1,0 +1,19 @@
+{
+  "name": "join-chat",
+  "version": "1.0.0",
+  "description": "Joins the chat room for a guest",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.465.0",
+    "@aws-sdk/util-dynamodb": "^3.465.0"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/parameters": "^1.17.0",
+    "@gomomento/sdk": "^1.51.1"
+  }
+}

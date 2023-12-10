@@ -1,0 +1,206 @@
+openapi: 3.0.0
+info:
+  title: Chat API
+  description: |
+    API for admin work of the chat app
+  version: 1.0.0
+
+x-amazon-apigateway-request-validators:
+  Validate All:
+    validateRequestParameters: true
+    validateRequestBody: true
+x-amazon-apigateway-gateway-responses:
+  BAD_REQUEST_BODY:
+    statusCode: 400
+    responseTemplates:
+      application/json: '{ "message": "$context.error.validationErrorString" }'
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+
+tags:
+  - name: Configuration
+
+paths:
+  /profiles:
+    get:
+      summary: Gets profiles for all gift receivers
+      tags:
+        - Configuration
+      responses:
+        200:
+          description: Profile found and was returned
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileSummaries'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetProfilesFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+    post:
+      summary: Adds a new profile
+      tags:
+        - Configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name:
+                  type: string
+                age:
+                  type: number
+                  minimum: 5
+                  maximum: 110
+                gender:
+                  type: string
+                  enum: [male, female, other]
+              required:
+                - name
+                - age
+                - gender
+      responses:
+        201:
+          $ref: '#/components/responses/Created'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AddProfileFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /profiles/{passcode}/sessions:
+    get:
+      summary: Restart the active session for a profile
+      tags:
+        - Gameplay
+      responses:
+        204:
+          $ref: '#/components/responses/NoContent'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ResetChatFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /credentials:
+    put:
+      summary: Sets the credentials for your account
+      tags:
+        - Configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                openAiKey:
+                  type: string
+              required:
+                - openAiKey
+      responses:
+        204:
+          $ref: '#/components/responses/NoContent'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SetCredentialsFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+components:
+  schemas:
+    ProfileSummaries:
+      type: object
+      properties:
+        profiles:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              status:
+                type: string
+                enum: [ Not Playing, Playing, Completed ]
+  responses:
+    NoContent:
+      description: The operation was successful and had no data to return
+
+    Created:
+      description: The operation completed successfully
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - passcode
+            properties:
+              passcode:
+                type: string
+                example: The identifier of the created entity
+
+    BadRequest:
+      description: The input format was incorrect
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: The input format is incorrect
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                example: The requested resource was not found
+
+    UnknownError:
+      description: An unexpected error occurred on the server.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              message:
+                type: string
+                description: Unknown error message
+                example: An unexpected error occurred.
+
