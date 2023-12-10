@@ -116,30 +116,38 @@ const continueConversation = async (profile, message) => {
   } else {
     console.warn(`Could not find conversation history for ${profile.sort}`);
   }
+  try {
+    await topicClient.publiish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'start-typing' }));
+    const newMessage = `[INST]${message}[/INST]`;
+    let prompt = messages.join('\n');
+    prompt += `\n${newMessage}`;
 
-  const newMessage = `[INST]${message}[/INST]`;
-  let prompt = messages.join('\n');
-  prompt += `\n${newMessage}`;
+    const params = getBedrockParams(prompt);
+    const response = await bedrock.send(new InvokeModelWithResponseStreamCommand(params));
+    const chunks = [];
+    for await (const chunk of response.body) {
+      const message = JSON.parse(
+        Buffer.from(chunk.chunk.bytes, "base64").toString("utf-8")
+      );
 
-  const params = getBedrockParams(prompt);
-  const response = await bedrock.send(new InvokeModelWithResponseStreamCommand(params));
-  const chunks = [];
-  for await (const chunk of response.body) {
-    const message = JSON.parse(
-      Buffer.from(chunk.chunk.bytes, "base64").toString("utf-8")
-    );
+      await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
+      chunks.push(message.generation);
+    }
 
-    await topicClient.publish(process.env.CACHE_NAME, profile.sort, message.generation);
-    chunks.push(message.generation);
+    const newResponse = chunks.join('');
+
+    // Save the prompt message history
+    await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [newMessage, newResponse]);
+
+    // Save the user friendly chat history
+    const chatMessage = JSON.stringify({ username: profile.name, message });
+    const santaMessage = JSON.stringify({ username: 'Santa', message: newResponse });
+    await cacheClient.listConcatenateBack(profile.sort, [chatMessage, santaMessage]);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    await topicClient.publiish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'done-typing' }));
   }
-
-  const newResponse = chunks.join('');
-
-  // Save the prompt message history
-  await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [newMessage, newResponse]);
-
-  // Save the user friendly chat history
-  await cacheClient.listConcatenateBack(profile.sort, [message, newResponse]);
 };
 
 const getBedrockParams = (prompt) => {

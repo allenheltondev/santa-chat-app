@@ -1,58 +1,43 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useContext } from 'react';
 import { useRouter } from 'next/router';
 import { FaArrowLeft } from 'react-icons/fa';
 import Head from 'next/head';
-import styles from '../../styles/chat.module.css';
-import { TopicClient, CacheClient, CredentialProvider, Configurations, CacheListFetch } from '@gomomento/sdk-web';
-import { getAuthToken } from '../../utils/Auth';
+import { CacheListFetch } from '@gomomento/sdk-web';
+import MomentoContext from '../../services/MomentoContext';
 
 const Chat = () => {
   const router = useRouter();
-  const { room } = router.query;
+  const { passcode } = router.query;
+  const { cacheClient, topicClient, refreshSDKs} = useContext(MomentoContext);
+
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const [topicClient, setTopicClient] = useState(null);
-  const [cacheClient, setCacheClient] = useState(null);
-  const cacheClientRef = useRef(cacheClient);
   const messagesRef = useRef(messages);
   const chatWindowRef = useRef(null);
-
-  useEffect(() => {
-    async function setupMomento() {
-      if (!cacheClient) {
-        const authToken = await getAuthToken();
-
-        const newCacheClient = new CacheClient({
-          configuration: Configurations.Browser.latest(),
-          credentialProvider: CredentialProvider.fromString({ authToken }),
-          defaultTtlSeconds: 1
-        });
-
-        const newTopicClient = new TopicClient({
-          configuration: Configurations.Browser.latest(),
-          credentialProvider: CredentialProvider.fromString({ authToken })
-        });
-
-        setTopicClient(newTopicClient);
-        updateCacheClient(newCacheClient);
-      }
-    }
-
-    if (room) {
-      setupMomento();
-    }
-  }, [room]);
-
-  const updateCacheClient = (client) => {
-    cacheClientRef.current = client;
-    setCacheClient(client);
-  };
 
   const updateMessages = (newMessages) => {
     messagesRef.current = newMessages;
     setMessages(newMessages);
   };
+
+  useEffect(() => {
+    const initialize = async () => {
+      await refreshSDKs(passcode);
+      await topicClient.subscribe(process.env.NEXT_PUBLIC_cacheName, passcode, {
+        onItem: async (data) => await processMessage(data.value()),
+        onError: (err) => console.error(err)
+      });
+    }
+
+    if(!cacheClient && passcode){
+      initialize();
+    }
+  }, [passcode]);
+
+  const processMessage = (message) => {
+    console.log(message);
+  }
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -62,27 +47,14 @@ const Chat = () => {
   }, [messages]);
 
   useEffect(() => {
-    async function subscribeToChat(){
-      await topicClient.subscribe('chat', `${room}-chat`, {
-        onItem: async (data) => await saveMessage(data.value()),
-        onError: (err) => console.log(err)
-      });
-    }
-
-    if(topicClient && id){
-      subscribeToChat();
-    }
-  }, [topicClient]);
-
-  useEffect(() => {
     if(cacheClient && !messages?.length){
       loadChatHistory();
     }
   }, [cacheClient]);
-  
+
 
   const loadChatHistory = async () => {
-    const chatHistoryResponse = await cacheClient.listFetch('chat', router.query.room);
+    const chatHistoryResponse = await cacheClient.listFetch(process.env.NEXT_PUBLIC_cacheName, passcode);
     if (chatHistoryResponse instanceof CacheListFetch.Hit) {
       const history = chatHistoryResponse.valueListString().map(msg => JSON.parse(msg));
       updateMessages(history);

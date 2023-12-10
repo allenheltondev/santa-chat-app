@@ -6,10 +6,9 @@ body {
   margin: 0;
   font-family: Inter, sans-serif;
   height: 100vh;
-  background-image: url('https://momento-challenges.s3.amazonaws.com/repeating-pattern-v2.png');
-  background-size: contain;
-  background-position: top center;
-  background-repeat: repeat;
+  background: linear-gradient(to bottom, #FFFFFF, #B3E5FC);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 button {
