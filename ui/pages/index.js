@@ -1,45 +1,46 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import { Flex, Card, Heading, Text, Link, Table, TableHead, TableRow, TableCell, TableBody, Loader, View } from '@aws-amplify/ui-react';
+import { useState, useContext } from 'react';
+import { Flex, Card, Heading, TextField, Text } from '@aws-amplify/ui-react';
 import Head from 'next/head';
-import { API, Auth } from 'aws-amplify';
+import MomentoContext from '../services/MomentoContext';
 
 const Home = () => {
-	const [token, setToken] = useState(null);
-	const [userEmail, setUserEmail] = useState(null);
+	const { initialize } = useContext(MomentoContext);
+	const router = useRouter();
+	const [passcode, setPasscode] = useState('');
+	const [error, setError] = useState('');
+	const handleKeyDown = async (event) => {
+		if (event.key == 'Enter') {
+			const response = await fetch('https://api.justinschristmasgift.com/sessions', {
+				method: 'POST',
+				body: JSON.stringify({ passcode })
+			});
 
-	useEffect(() => {
-		const getSessionToken = async () => {
-			const session = await Auth.currentSession();
-			const jwt = session.getIdToken().getJwtToken();
-			setToken(jwt);
+			if (!response.ok) {
+				setError("That wasn't right. Can you try again?");
+			} else {
+				setError('');
+				const data = await response.json();
+				sessionStorage?.setItem('name', data.name);
+				await initialize(data.token, data.exp);
+				router.push(`/chat/${passcode}`);
+			}
 		}
-
-		getSessionToken();
-	}, []);
-
-	useEffect(() => {
-		if (token) {
-			refresh();
-		}
-	}, [token]);
-
-	const loadLoggedInUser = async () => {
-		if(!userEmail){
-		const user = await Auth.currentUserInfo()
-		setUserEmail(user.attributes.email);
-		}
-	}
-
-	loadLoggedInUser();
+	};
 
 	return (
 		<>
 			<Head>
 				<title>Justin's Christmas Gift</title>
 			</Head>
-			<Flex direction="column" width="100%" alignItems="center" height="90vh">
-
+			<Flex direction="column" width="100%" alignItems="center" height="90vh" justifyContent="center">
+				<Card variation="elevated" width={{ base: '90%', large: '60%' }} padding="20px 30px 30px 30px">
+					<Flex direction="column" justifyContent="center">
+						<Heading level={4}>Did Santa give you a code?</Heading>
+						<TextField placeholder="Enter the code" value={passcode} onChange={(e) => setPasscode(e.target.value)} onKeyDown={handleKeyDown} />
+						{error && <Text color="red.60" fontSize="14px" fontStyle="italic">{error}</Text>}
+					</Flex>
+				</Card>
 			</Flex>
 		</>
 	);

@@ -3,10 +3,10 @@ import '@aws-amplify/ui-react/styles.css';
 import 'react-toastify/dist/ReactToastify.css';
 import 'react-contexify/ReactContexify.css';
 import { Amplify } from "aws-amplify";
-import { Flex, AmplifyProvider, Authenticator } from '@aws-amplify/ui-react';
+import { Flex, AmplifyProvider } from '@aws-amplify/ui-react';
 import { CacheClient, TopicClient, CredentialProvider, Configurations } from '@gomomento/sdk-web';
 import MomentoContext from "../services/MomentoContext";
-import { Auth, API } from 'aws-amplify';
+import { API } from 'aws-amplify';
 import { config } from "../config";
 import Header from "../components/Header";
 import { useEffect, useState } from 'react';
@@ -20,8 +20,8 @@ function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     async function initializeSDKs() {
-      const storedToken = localStorage.getItem('authToken');
-      const expiresAt = localStorage.getItem('expiresAt');
+      const storedToken = sessionStorage?.getItem('authToken');
+      const expiresAt = sessionStorage?.getItem('expiresAt');
       const currentTime = new Date().getTime();
 
       let token;
@@ -34,8 +34,8 @@ function MyApp({ Component, pageProps }) {
           const response = await API.post('Public', `/${sessions}`, {
             body: { passcode: sessionPasscode }
           });
-          localStorage.setItem('authToken', response.token);
-          localStorage.setItem('expiresAt', response.exp);
+          sessionStorage?.setItem('authToken', response.token);
+          sessionStorage?.setItem('expiresAt', response.exp);
         }
       }
 
@@ -46,7 +46,10 @@ function MyApp({ Component, pageProps }) {
     initializeSDKs();
   }, []);
 
-  const initialize = (token) => {
+  const initialize = (token, exp) => {
+    if (!token) {
+      token = sessionStorage?.getItem('authToken');
+    }
     if (!token)
       return;
 
@@ -63,7 +66,10 @@ function MyApp({ Component, pageProps }) {
 
     setCacheClient(client);
     setTopicClient(topics);
-    localStorage.setItem('authToken', token);
+    sessionStorage?.setItem('authToken', token);
+    if (exp) {
+      sessionStorage?.setItem('expiresAt', exp);
+    }
   };
 
   const refreshSDKs = async (passcode) => {
@@ -72,26 +78,24 @@ function MyApp({ Component, pageProps }) {
       passcode = sessionPasscode;
     }
 
-    if (sessionPasscode) {
+    if (passcode) {
       const response = await API.post('Public', `/${sessions}`, {
         body: { passcode: sessionPasscode }
       });
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('expiresAt', response.exp);
+      sessionStorage?.setItem('authToken', response.token);
+      sessionStorage?.setItem('expiresAt', response.exp);
     }
   };
 
   return (
     <AmplifyProvider>
-      <Authenticator hideSignUp variation="modal">
-        <MomentoContext.Provider value={{ cacheClient, topicClient, refreshSDKs }}>
-          <Flex direction="column" width="100%">
-            <Header />
-            <Component {...pageProps} />
-            <ToastContainer />
-          </Flex>
-        </MomentoContext.Provider>
-      </Authenticator>
+      <MomentoContext.Provider value={{ cacheClient, topicClient, refreshSDKs, initialize }}>
+        <Flex direction="column" width="100%">
+          <Header />
+          <Component {...pageProps} />
+          <ToastContainer />
+        </Flex>
+      </MomentoContext.Provider>
     </AmplifyProvider>
   );
 }

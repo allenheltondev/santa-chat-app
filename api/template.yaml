@@ -387,6 +387,7 @@ Resources:
         Variables:
           SECRET_ID: !Ref MomentoSecret
           TABLE_NAME: !Ref ChatTable
+          CACHE_NAME: !Ref DefaultCache
       Events:
         FromApi:
           Type: Api

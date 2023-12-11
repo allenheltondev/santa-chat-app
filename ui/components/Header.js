@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Flex, Image, Button } from '@aws-amplify/ui-react';
+import { Flex, Image, Button, Heading } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/router';
-import { Menu, Item, useContextMenu } from 'react-contexify'
+import { Menu, Item, useContextMenu } from 'react-contexify';
 import { Auth } from 'aws-amplify';
-import { BiCalendarCheck } from 'react-icons/bi';
-import { FiList } from 'react-icons/fi';
-import { TiSocialTwitter } from 'react-icons/ti';
 
 const PROFILE = 'profilemenu';
 
@@ -18,11 +15,11 @@ const Header = () => {
     const getUser = async () => {
       try {
         const user = await Auth.currentAuthenticatedUser();
-        setUsername(user.attributes.email)
+        setUsername(user.attributes.email);
       } catch (err) {
         console.error(err);
       }
-    }
+    };
 
     getUser();
   }, []);
@@ -34,23 +31,26 @@ const Header = () => {
 
   return (
     <>
-      <Flex direction="row" justifyContent="space-between" alignContent="center" padding="10px" backgroundColor="#25392B" boxShadow="medium">
-        <Image src="/logo.png" maxHeight="2em" style={{ cursor: "pointer" }} onClick={() => router.push('/')} />
+      <Flex direction="row" justifyContent="space-between" alignContent="center" padding="10px" backgroundColor="#FFFFFF" boxShadow="medium">
+        <Flex direction="row" alignItems="center" gap=".75em" style={{ cursor: "pointer" }} onClick={() => router.push('/')} >
+          <Image src="/logo.png" maxHeight="2em" />
+          <Heading level={5} marginTop=".2em">Justin's Christmas Gift</Heading>
+        </Flex>
         <Flex direction="row" gap="1.25em" alignItems="center">
-          <TiSocialTwitter size="1.25em" cursor="pointer" color="white" onClick={() => router.push('/social')} />
-          <FiList size="1.25em" cursor="pointer" color="white" onClick={() => router.push('/content/unscheduled')} />
-          <BiCalendarCheck size="1.25em" cursor="pointer" color="white" onClick={() => router.push('/schedule')}/>
-          <Button color="white" borderColor="white" height="2.25em" fontSize=".9rem" colorTheme="overlay" onClick={() => router.push('/content')}>+ New Idea</Button>
-          <Flex
-            alignItems="center"
-            justifyContent="center"
-            borderRadius="xxl"
-            backgroundColor="#C4F135"
-            width="1.5em"
-            height="1.5em"
-            onClick={handleContextMenu}>
-            {username?.charAt(0).toUpperCase()}
-          </Flex>
+          {username ? (
+            <Flex
+              alignItems="center"
+              justifyContent="center"
+              borderRadius="xxl"
+              backgroundColor="#B3E5FC"
+              width="1.5em"
+              height="1.5em"
+              onClick={handleContextMenu}>
+              {username?.charAt(0).toUpperCase()}
+            </Flex>
+          ) : (
+            <Button onClick={() => router.push('/settings')}>Sign In</Button>
+          )}
         </Flex>
         <Menu id={PROFILE}>
           <Item id="signOut" onClick={() => Auth.signOut()}>Sign Out</Item>

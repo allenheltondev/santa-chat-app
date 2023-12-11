@@ -116,8 +116,9 @@ const continueConversation = async (profile, message) => {
   } else {
     console.warn(`Could not find conversation history for ${profile.sort}`);
   }
+  let santaMessage;
   try {
-    await topicClient.publiish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'start-typing' }));
+    await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'start-typing' }));
     const newMessage = `[INST]${message}[/INST]`;
     let prompt = messages.join('\n');
     prompt += `\n${newMessage}`;
@@ -141,12 +142,12 @@ const continueConversation = async (profile, message) => {
 
     // Save the user friendly chat history
     const chatMessage = JSON.stringify({ username: profile.name, message });
-    const santaMessage = JSON.stringify({ username: 'Santa', message: newResponse });
+    santaMessage = JSON.stringify({ username: 'Santa', message: newResponse });
     await cacheClient.listConcatenateBack(profile.sort, [chatMessage, santaMessage]);
   } catch (err) {
     console.error(err);
   } finally {
-    await topicClient.publiish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'done-typing' }));
+    await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'done-typing', message: santaMessage ?? '' }));
   }
 };
 

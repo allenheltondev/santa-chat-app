@@ -64,13 +64,15 @@ exports.handler = async (event) => {
         statusCode: 200,
         body: JSON.stringify({
           token: tokenResponse.authToken,
-          exp: tokenResponse.expiresAt.epoch()
+          exp: tokenResponse.expiresAt.epoch(),
+          name: response.Items[0].name.S
         }),
         headers: { 'Access-Control-Allow-Origin': process.env.CORS_ORIGIN }
       };
+    } else {
+      console.error(tokenResponse.errorCode(), tokenResponse.message());
+      throw new Error('Could not create auth token');
     }
-
-    throw new Error('Could not create auth token');
   } catch (err) {
     console.error(err);
     return {
