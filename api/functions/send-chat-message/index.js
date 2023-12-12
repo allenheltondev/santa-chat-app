@@ -2,7 +2,7 @@ const { getSecret } = require('@aws-lambda-powertools/parameters/secrets');
 const { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 const { DynamoDBClient, QueryCommand, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 const { marshall, unmarshall } = require('@aws-sdk/util-dynamodb');
-const { TopicClient, CacheClient, CredentialProvider, Configurations, CacheGet, CacheListFetch } = require('@gomomento/sdk');
+const { TopicClient, CacheClient, CredentialProvider, Configurations, CacheGet, CacheListFetch, TopicPublish } = require('@gomomento/sdk');
 
 const bedrock = new BedrockRuntimeClient();
 const ddb = new DynamoDBClient();
@@ -131,7 +131,10 @@ const continueConversation = async (profile, message) => {
         Buffer.from(chunk.chunk.bytes, "base64").toString("utf-8")
       );
 
-      await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
+      const pubResponse = await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
+      if (pubResponse instanceof TopicPublish.Error) {
+        console.error(pubResponse.errorCode(), pubResponse.message());
+      }
       chunks.push(message.generation);
     }
 

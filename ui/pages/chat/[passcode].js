@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useContext } from 'react';
 import { Flex, Card, Heading, Button, Text, Link, Table, TableHead, TableRow, TableCell, TableBody, Loader, View } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { CacheListFetch } from '@gomomento/sdk-web';
+import { CacheListFetch, TopicSubscribe } from '@gomomento/sdk-web';
 import MomentoContext from '../../services/MomentoContext';
 
 const Chat = () => {
@@ -14,6 +14,7 @@ const Chat = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [santaIsTyping, setSantaIsTyping] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState('');
   const messagesRef = useRef(messages);
   const chatWindowRef = useRef(null);
 
@@ -30,17 +31,22 @@ const Chat = () => {
       subscribeToPasscode();
     }
     setName(sessionName);
-  }, []);
+
+  }, [topicClient, passcode]);
 
   const subscribeToPasscode = async () => {
-    if(!topicClient){
+    if (!topicClient) {
       await initialize(passcode);
     }
+    if (topicClient && passcode) {
+      console.log('now we are cooking')
+      const subscription = await topicClient?.subscribe(process.env.NEXT_PUBLIC_cacheName, passcode, {
+        onItem: async (data) => await processMessage(data.value()),
+        onError: (err) => console.error(err)
+      });
 
-    const subscription = await topicClient.subscribe(process.env.NEXT_PUBLIC_cacheName, passcode, {
-      onItem: async (data) => await processMessage(data.value()),
-      onError: (err) => console.error(err)
-    });
+      console.log(subscription);
+    }
   };
 
   const processMessage = (message) => {
@@ -51,6 +57,10 @@ const Chat = () => {
         break;
       case 'done-typing':
         setSantaIsTyping(false);
+        setCurrentMessage('');
+        break;
+      case 'partial-message':
+        setCurrentMessage(currentMessage + msg.content);
         break;
     }
 
@@ -111,6 +121,11 @@ const Chat = () => {
         gap=".2em"
       >
         <ul style={{ flexGrow: 1, listStyleType: 'none', margin: 0, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
+          {santaIsTyping && (
+            <li key='santacurrentmessage' style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: '#D2E5A8' }}>
+              <strong>Santa: </strong>{currentMessage}
+            </li>
+          )}
           {messages.map((msg, index) => (
             <li key={index} style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: msg.username === name ? '#f1f1f1' : '#D2E5A8' }}>
               <strong>{msg.username}: </strong>{msg.message}

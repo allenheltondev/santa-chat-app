@@ -1,7 +1,7 @@
 {
-  "name": "set-credentials",
+  "name": "update-profile",
   "version": "1.0.0",
-  "description": "Overwrites the credentials for a user",
+  "description": "Updates profile details",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@aws-sdk/client-ssm": "^3.454.0"
+    "@aws-sdk/client-dynamodb": "^3.470.0",
+    "@aws-sdk/util-dynamodb": "^3.470.0"
   }
 }

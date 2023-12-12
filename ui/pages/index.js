@@ -37,7 +37,7 @@ const Home = () => {
 				<Card variation="elevated" width={{ base: '90%', large: '60%' }} padding="20px 30px 30px 30px">
 					<Flex direction="column" justifyContent="center">
 						<Heading level={4}>Did Santa give you a code?</Heading>
-						<TextField placeholder="Enter the code" value={passcode} onChange={(e) => setPasscode(e.target.value)} onKeyDown={handleKeyDown} />
+						<TextField placeholder="Enter the code" value={passcode} onChange={(e) => setPasscode(e.target.value?.toUpperCase())} onKeyDown={handleKeyDown} />
 						{error && <Text color="red.60" fontSize="14px" fontStyle="italic">{error}</Text>}
 					</Flex>
 				</Card>

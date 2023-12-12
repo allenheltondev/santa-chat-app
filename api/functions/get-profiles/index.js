@@ -16,9 +16,9 @@ exports.handler = async (event) => {
     const profiles = response.Items.map(item => {
       const data = unmarshall(item);
       return {
-        id: data.profileId,
+        passcode: data.sort,
         name: data.name,
-        status: data.status
+        status: data.status ?? 'Not started'
       };
     });
 

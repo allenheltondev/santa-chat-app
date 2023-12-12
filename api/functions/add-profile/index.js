@@ -13,7 +13,7 @@ exports.handler = async (event) => {
       try {
         await saveProfile(tenantId, profilePasscode, body);
       } catch (err) {
-        if (error.name == 'ConditionalCheckFailedException') {
+        if (err.name == 'ConditionalCheckFailedException') {
           success = false;
         } else {
           throw err;

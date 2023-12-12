@@ -3,7 +3,6 @@ const { getSecret } = require('@aws-lambda-powertools/parameters/secrets');
 const { EventBridgeClient, PutEventsCommand } = require('@aws-sdk/client-eventbridge');
 
 const eventbridge = new EventBridgeClient();
-let webhookHash;
 
 exports.handler = async (event) => {
   try {
@@ -73,12 +72,8 @@ const validateRequest = async (body, signature) => {
 };
 
 const getHash = async () => {
-  if (webhookHash) {
-    return webhookHash;
-  }
-
   const secret = await getSecret(process.env.SECRET_ID, { transform: 'json' });
-  webhookHash = crypto.createHmac('SHA3-256', secret.webhook);
+  const webhookHash = crypto.createHmac('SHA3-256', secret.webhook);
   return webhookHash;
 };
 

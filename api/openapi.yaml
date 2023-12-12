@@ -19,6 +19,7 @@ x-amazon-apigateway-gateway-responses:
 
 tags:
   - name: Configuration
+  - name: Gameplay
 
 paths:
   /profiles:
@@ -82,8 +83,62 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
-  /profiles/{passcode}/sessions:
+  /profiles/{passcode}:
+    parameters:
+      - $ref: '#/components/parameters/passcode'
     get:
+      summary: Get details for a specific profile
+      tags:
+        - Configuration
+      responses:
+        200:
+          description: Profile found and was returned
+          headers:
+            Access-Control-Allow-Origin:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetProfileFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+    put:
+      summary: Update details for a specific profile
+      tags:
+        - Configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+      responses:
+        204:
+          $ref: '#/components/responses/NoContent'
+        404:
+          $ref: '#/components/responses/NotFound'
+        500:
+          $ref: '#/components/responses/UnknownError'
+      x-amazon-apigateway-request-validator: Validate All
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateProfileFunction.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+
+  /profiles/{passcode}/sessions:
+    parameters:
+      - $ref: '#/components/parameters/passcode'
+    delete:
       summary: Restart the active session for a profile
       tags:
         - Gameplay
@@ -101,36 +156,18 @@ paths:
         httpMethod: POST
         type: aws_proxy
 
-  /credentials:
-    put:
-      summary: Sets the credentials for your account
-      tags:
-        - Configuration
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              properties:
-                openAiKey:
-                  type: string
-              required:
-                - openAiKey
-      responses:
-        204:
-          $ref: '#/components/responses/NoContent'
-        500:
-          $ref: '#/components/responses/UnknownError'
-      x-amazon-apigateway-request-validator: Validate All
-      x-amazon-apigateway-integration:
-        uri:
-          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SetCredentialsFunction.Arn}/invocations
-        httpMethod: POST
-        type: aws_proxy
-
 components:
+  parameters:
+    passcode:
+      name: passcode
+      description: Unique identifier for a profile
+      required: true
+      in: path
+      schema:
+        type: string
+        minLength: 6
+        maxLength: 6
+
   schemas:
     ProfileSummaries:
       type: object
@@ -140,13 +177,43 @@ components:
           items:
             type: object
             properties:
-              id:
+              passcode:
                 type: string
               name:
                 type: string
               status:
                 type: string
                 enum: [ Not Playing, Playing, Completed ]
+    Profile:
+      type: object
+      properties:
+        passcode:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        age:
+          type: number
+        gender:
+          type: string
+        facts:
+          type: array
+          items:
+            type: string
+        presents:
+          type: array
+          items:
+            type: object
+            properties:
+              order:
+                type: number
+              description:
+                type: string
+            required:
+              - order
+              - description
+
   responses:
     NoContent:
       description: The operation was successful and had no data to return

@@ -36,8 +36,8 @@ Globals:
         CORS_ORIGIN: !Ref CORSOrigin
   Api:
     Cors:
-      AllowMethods: "'POST,GET,PUT,OPTIONS'"
-      AllowHeaders: "'Content-Type'"
+      AllowMethods: "'POST,GET,PUT,DELETE,OPTIONS'"
+      AllowHeaders: "'Accept,Content-Type,Authorization,X-Amz-Security-Token,X-Amz-Date'"
       AllowOrigin: "'*'"
 
 Resources:
@@ -277,7 +277,7 @@ Resources:
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
-              Action: dynamodb:Put
+              Action: dynamodb:PutItem
               Resource: !GetAtt ChatTable.Arn
       Environment:
         Variables:
@@ -290,23 +290,48 @@ Resources:
             Path: /profiles
             Method: POST
 
-  SetCredentialsFunction:
+  GetProfileFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: functions/set-credentials
+      CodeUri: functions/get-profile
       Policies:
         - AWSLambdaBasicExecutionRole
         - Version: 2012-10-17
           Statement:
             - Effect: Allow
-              Action: ssm:PutParameter
-              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/santa-chat/*
+              Action: dynamodb:GetItem
+              Resource: !GetAtt ChatTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ChatTable
       Events:
         FromApi:
           Type: Api
           Properties:
             RestApiId: !Ref ChatAdminApi
-            Path: /credentials
+            Path: /profiles/{passcode}
+            Method: GET
+
+  UpdateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/update-profile
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt ChatTable.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ChatTable
+      Events:
+        FromApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChatAdminApi
+            Path: /profiles/{passcode}
             Method: PUT
 
   TalkToSantaFunction:
