@@ -65,8 +65,8 @@ const Chat = () => {
         break;
       case 'done-typing':
         setSantaIsTyping(false);
-        updateCurrentMessage('');
-        console.log(msg.message);
+        currentMessageRef.current = '';
+        setCurrentMessage('');
         updateMessages([JSON.parse(msg.message), ...messagesRef.current]);
         break;
       case 'partial-message':
