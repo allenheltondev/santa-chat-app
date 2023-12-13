@@ -138,7 +138,7 @@ const continueConversation = async (profile, message) => {
     for await (const chunk of stream) {
       const message = chunk.choices[0]?.delta?.content;
       if (message) {
-        const pubResponse = await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
+        const pubResponse = await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message }));
         if (pubResponse instanceof TopicPublish.Error) {
           console.error(pubResponse.errorCode(), pubResponse.message());
         }
