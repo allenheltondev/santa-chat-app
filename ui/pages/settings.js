@@ -1,11 +1,12 @@
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { Flex, Card, Heading, Text, Link, Table, TableHead, TableRow, TableCell, TableBody, Loader, View, Authenticator } from '@aws-amplify/ui-react';
+import { Flex, Card, Heading, Table, TableHead, TableRow, TableCell, TableBody, View, Authenticator } from '@aws-amplify/ui-react';
 import Head from 'next/head';
 import { API, Auth } from 'aws-amplify';
 import { IoMdAddCircleOutline } from "react-icons/io";
 import { GrPowerReset } from "react-icons/gr";
 import AddProfile from '../components/AddProfile';
+import { toast } from 'react-toastify';
 
 const SettingsPage = () => {
   const router = useRouter();
@@ -24,6 +25,16 @@ const SettingsPage = () => {
         }
       })
       .catch(err => console.log(err));
+
+    if (router.query.message) {
+      const message = decodeURIComponent(router.query.message);
+      if (router.query?.messageType?.toLowerCase() == 'success') {
+        toast.success(message, { position: 'top-right', autoClose: 5000, draggable: false, hideProgressBar: true, theme: 'colored' });
+      } else {
+        toast.error(message, { position: 'top-right', autoClose: 5000, draggable: false, hideProgressBar: true, theme: 'colored' });
+      }
+      router.replace('/settings', undefined, { shallow: true });
+    }
   }, []);
 
   const getProfiles = async (jwt) => {
@@ -72,16 +83,18 @@ const SettingsPage = () => {
               </Flex>
               <Table highlightOnHover={true}>
                 <TableHead>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Passcode</TableCell>
-                  <TableCell textAlign="right">Status</TableCell>
+                  <TableRow>
+                    <TableCell as="th">Name</TableCell>
+                    <TableCell as="th">Passcode</TableCell>
+                    <TableCell as="th" textAlign="right">Status</TableCell>
+                  </TableRow>
                 </TableHead>
                 <TableBody>
                   {profiles.map(profile => (
-                    <TableRow onClick={() => router.push(`/profiles/${profile.passcode}`)}>
-                      <TableCell>{profile.name}</TableCell>
+                    <TableRow key={profile.passcode} >
+                      <TableCell onClick={() => router.push(`/profiles/${profile.passcode}`)}>{profile.name}</TableCell>
                       <TableCell>{profile.passcode}</TableCell>
-                      <TableCell>
+                      <TableCell onClick={() => router.push(`/profiles/${profile.passcode}`)}>
                         <Flex direction="row" gap="1em" alignItems="center" justifyContent="right">
                           {profile.status}
                           <View style={{ cursor: 'pointer' }} onClick={(e) => reset(e, profile.passcode)}>

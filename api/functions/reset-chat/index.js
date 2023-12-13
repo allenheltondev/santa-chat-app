@@ -63,4 +63,7 @@ const updateCache = async (passcode, profile) => {
   if (response instanceof CacheSet.Error) {
     console.error(response.errorCode(), response.message());
   }
+
+  await cacheClient.delete(process.env.CACHE_NAME, `${passcode}-chat`);
+  await cacheClient.delete(process.env.CACHE_NAME, passcode);
 };

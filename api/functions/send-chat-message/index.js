@@ -1,11 +1,11 @@
 const { getSecret } = require('@aws-lambda-powertools/parameters/secrets');
-const { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand, InvokeModelCommand } = require('@aws-sdk/client-bedrock-runtime');
 const { DynamoDBClient, QueryCommand, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 const { marshall, unmarshall } = require('@aws-sdk/util-dynamodb');
 const { TopicClient, CacheClient, CredentialProvider, Configurations, CacheGet, CacheListFetch, TopicPublish } = require('@gomomento/sdk');
+const OpenAI = require('openai');
 
-const bedrock = new BedrockRuntimeClient();
 const ddb = new DynamoDBClient();
+let openai;
 let topicClient;
 let cacheClient;
 
@@ -35,7 +35,7 @@ exports.handler = async (event) => {
 };
 
 const initializeClients = async () => {
-  if (topicClient && cacheClient)
+  if (topicClient && cacheClient && openai)
     return;
 
   const secret = await getSecret(process.env.SECRET_ID, { transform: 'json' });
@@ -50,6 +50,8 @@ const initializeClients = async () => {
   });
 
   cacheClient = cacheClient.cache(process.env.CACHE_NAME);
+
+  openai = new OpenAI({ apiKey: secret.openai });
 };
 
 const getProfile = async (passcode) => {
@@ -89,63 +91,69 @@ const getProfile = async (passcode) => {
 };
 
 const startNewConversation = async (profile) => {
-  const prompt = `[INST] You are Santa Claus. You are about to talk to a person who you think might be ${profile.name}, a ${profile.age} year
-  old ${profile.gender}. Below are a few facts about ${profile.name} that you can use to ask questions to test if it's them. Be tricky and
-  ask them only questions they would know. It's ok to ask trick questions to see if they respond incorrectly. Once you're sure this person is
-  definitely ${profile.name}, respond with "Ok, I believe you are ${profile.name}." Be sure to make references to things like elves,
-  the north pole, presents, etc..
-  Facts:
-    - ${profile.facts.join('\n\t- ')}
-  Respond only with "I understand" if you understand. The next message will be this person. [/INST]`;
+  const prompts = [{
+    role: 'system',
+    content: 'You are Santa Claus. Your demeanor is jolly and friendly but guarded. You are here to talk to a person asking about their presents. You are ok telling this person which order to open their presents, but they need to prove how nice they are and also prove they are who they say they are.'
+  },
+  {
+    role: 'user',
+    content: `You are about to talk to a person who you think might be ${profile.name}, a ${profile.age} year
+    old ${profile.gender}. Below are a few facts about ${profile.name} that you can use to ask questions to test if it's them. Be tricky and
+    ask them only questions they would know. It's ok to ask trick questions to see if they respond incorrectly. Once you're sure this person is
+    definitely ${profile.name}, respond with "Ok, I believe you are ${profile.name}." Be sure to make references to things like elves,
+    the north pole, presents, etc.. Ask only one question at a time and ask at least 3 questions with respect to the following facts.
+    Facts:
+      - ${profile.facts.join('\n\t- ')}
+    Respond only with "I understand" if you understand. The next message will be this person stating their name.`
+  }];
 
-  const params = getBedrockParams(prompt);
-  const response = await bedrock.send(new InvokeModelCommand(params));
+  const result = await openai.chat.completions.create(getParams(prompts));
 
-  const answer = JSON.parse(new TextDecoder().decode(response.body));
-  console.log(answer);
-  const completion = answer.generation;
-  console.log(completion);
-  await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [prompt, completion]);
+  const answer = result.choices[0].message;
+  await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [...prompts.map(p => JSON.stringify(p)), JSON.stringify(answer)]);
 };
 
 const continueConversation = async (profile, message) => {
   let messages = [];
   const history = await cacheClient.listFetch(`${profile.sort}-chat`);
   if (history instanceof CacheListFetch.Hit) {
-    messages = history.value();
+    messages = history.value().map(h => JSON.parse(h));
   } else {
     console.warn(`Could not find conversation history for ${profile.sort}`);
   }
   let santaMessage;
   try {
     await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'start-typing' }));
-    const newMessage = `[INST]${message}[/INST]`;
-    let prompt = messages.join('\n');
-    prompt += `\n${newMessage}`;
+    const newMessage = {
+      role: 'user',
+      content: message
+    };
+    messages.push(newMessage);
 
-    const params = getBedrockParams(prompt);
-    const response = await bedrock.send(new InvokeModelWithResponseStreamCommand(params));
-    const chunks = [];
-    for await (const chunk of response.body) {
-      const message = JSON.parse(
-        Buffer.from(chunk.chunk.bytes, "base64").toString("utf-8")
-      );
+    const params = getParams(messages);
+    params.stream = true;
 
-      const pubResponse = await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
-      if (pubResponse instanceof TopicPublish.Error) {
-        console.error(pubResponse.errorCode(), pubResponse.message());
+    const stream = await openai.beta.chat.completions.stream(params);
+
+    for await (const chunk of stream) {
+      const message = chunk.choices[0]?.delta?.content;
+      if (message) {
+        const pubResponse = await topicClient.publish(process.env.CACHE_NAME, profile.sort, JSON.stringify({ type: 'partial-message', content: message.generation }));
+        if (pubResponse instanceof TopicPublish.Error) {
+          console.error(pubResponse.errorCode(), pubResponse.message());
+        }
       }
-      chunks.push(message.generation);
     }
 
-    const newResponse = chunks.join('');
+    const completion = await stream.finalChatCompletion();
+    const newResponse = completion.choices[0].message;
 
     // Save the prompt message history
-    await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [newMessage, newResponse]);
+    await cacheClient.listConcatenateBack(`${profile.sort}-chat`, [JSON.stringify(newMessage), JSON.stringify(newResponse)]);
 
     // Save the user friendly chat history
     const chatMessage = JSON.stringify({ username: profile.name, message });
-    santaMessage = JSON.stringify({ username: 'Santa', message: newResponse });
+    santaMessage = JSON.stringify({ username: 'Santa', message: newResponse.content });
     await cacheClient.listConcatenateBack(profile.sort, [chatMessage, santaMessage]);
   } catch (err) {
     console.error(err);
@@ -154,17 +162,11 @@ const continueConversation = async (profile, message) => {
   }
 };
 
-const getBedrockParams = (prompt) => {
+const getParams = (messages) => {
   return {
-    modelId: 'meta.llama2-70b-chat-v1',
-    contentType: 'application/json',
-    accept: 'application/json',
-    body: JSON.stringify({
-      prompt,
-      temperature: .6,
-      max_gen_len: 512,
-      top_p: .9
-    })
+    model: 'gpt-4-1106-preview',
+    temperature: .7,
+    messages
   };
 };
 

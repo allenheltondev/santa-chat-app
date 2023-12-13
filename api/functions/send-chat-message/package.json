@@ -9,9 +9,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-lambda-powertools/parameters": "^1.17.0",
     "@aws-sdk/client-bedrock-runtime": "^3.468.0",
     "@gomomento/sdk": "^1.52.1",
-    "@aws-lambda-powertools/parameters": "^1.17.0"
+    "openai": "^4.21.0"
   },
   "devDependencies": {
     "@aws-sdk/client-dynamodb": "^3.468.0",

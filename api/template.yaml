@@ -20,6 +20,9 @@ Parameters:
   WebhookSecret:
     Type: String
     NoEcho: true
+  OpenAIKey:
+    Type: String
+    NoEcho: true
 
 Globals:
   Function:
@@ -373,11 +376,6 @@ Resources:
               Action:
                 - secretsmanager:GetSecretValue
               Resource: !Ref MomentoSecret
-            - Effect: Allow
-              Action:
-                - bedrock:InvokeModel
-                - bedrock:InvokeModelWithResponseStream
-              Resource: '*'
       Environment:
         Variables:
           SECRET_ID: !Ref MomentoSecret
@@ -456,10 +454,12 @@ Resources:
           - |-
             {
               "momento": "${MomentoApiKey}",
-              "webhook": "${WebhookSecret}"
+              "webhook": "${WebhookSecret}",
+              "openai": "${OpenAIKey}"
             }
           - MomentoApiKey: !Ref MomentoApiKey
             WebhookSecret: !Ref WebhookSecret
+            OpenAIKey: !Ref OpenAIKey
 
 Outputs:
   WebhookUrl:

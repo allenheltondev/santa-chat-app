@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Flex, Image, Button, Heading } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/router';
-import { Menu, Item, useContextMenu } from 'react-contexify';
+import { Menu, Item, useContextMenu, Separator } from 'react-contexify';
 import { Auth } from 'aws-amplify';
 
 const PROFILE = 'profilemenu';
@@ -43,8 +43,8 @@ const Header = () => {
               justifyContent="center"
               borderRadius="xxl"
               backgroundColor="#B3E5FC"
-              width="1.5em"
-              height="1.5em"
+              width="2em"
+              height="2em"
               onClick={handleContextMenu}>
               {username?.charAt(0).toUpperCase()}
             </Flex>
@@ -53,6 +53,8 @@ const Header = () => {
           )}
         </Flex>
         <Menu id={PROFILE}>
+          <Item id="settings" onClick={(() => router.push('/settings'))}>Settings</Item>
+          <Separator />
           <Item id="signOut" onClick={() => Auth.signOut()}>Sign Out</Item>
         </Menu>
       </Flex>

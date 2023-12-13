@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useRef, useContext } from 'react';
-import { Flex, Card, Heading, Button, Text, Link, Table, TableHead, TableRow, TableCell, TableBody, Loader, View } from '@aws-amplify/ui-react';
+import { Flex, Heading, Button, Text, View } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
-import { CacheListFetch, TopicSubscribe } from '@gomomento/sdk-web';
+import { CacheListFetch } from '@gomomento/sdk-web';
 import MomentoContext from '../../services/MomentoContext';
+
+const INTRO_MESSAGE = "Ho, ho, ho! It's good to hear from you! Before we do anything, I need to verify that it's actually you. I'm going to ask you a few questions. First, what is your full name?";
 
 const Chat = () => {
   const router = useRouter();
@@ -17,10 +19,17 @@ const Chat = () => {
   const [currentMessage, setCurrentMessage] = useState('');
   const messagesRef = useRef(messages);
   const chatWindowRef = useRef(null);
+  const currentMessageRef = useRef(currentMessage);
 
   const updateMessages = (newMessages) => {
     messagesRef.current = newMessages;
     setMessages(newMessages);
+  };
+
+  const updateCurrentMessage = (messagePiece) => {
+    const newCurrentMessage = currentMessageRef.current + messagePiece;
+    currentMessageRef.current = newCurrentMessage;
+    setCurrentMessage(newCurrentMessage);
   };
 
   useEffect(() => {
@@ -39,7 +48,6 @@ const Chat = () => {
       await initialize(passcode);
     }
     if (topicClient && passcode) {
-      console.log('now we are cooking')
       const subscription = await topicClient?.subscribe(process.env.NEXT_PUBLIC_cacheName, passcode, {
         onItem: async (data) => await processMessage(data.value()),
         onError: (err) => console.error(err)
@@ -57,10 +65,12 @@ const Chat = () => {
         break;
       case 'done-typing':
         setSantaIsTyping(false);
-        setCurrentMessage('');
+        updateCurrentMessage('');
+        console.log(msg.message);
+        updateMessages([JSON.parse(msg.message), ...messagesRef.current]);
         break;
       case 'partial-message':
-        setCurrentMessage(currentMessage + msg.content);
+        updateCurrentMessage(msg.content);
         break;
     }
 
@@ -81,16 +91,15 @@ const Chat = () => {
 
 
   const loadChatHistory = async () => {
+    let history = [];
     const chatHistoryResponse = await cacheClient.listFetch(process.env.NEXT_PUBLIC_cacheName, passcode);
     if (chatHistoryResponse instanceof CacheListFetch.Hit) {
-      const history = chatHistoryResponse.valueListString().map(msg => JSON.parse(msg));
-      updateMessages(history);
+      history = chatHistoryResponse.valueListString().map(msg => JSON.parse(msg));
     }
-  };
-
-  const saveMessage = async (newMessage) => {
-    const detail = JSON.parse(newMessage);
-    updateMessages([detail, ...messagesRef.current]);
+    if (!history.length) {
+      history.push({ username: 'Santa', message: INTRO_MESSAGE });
+    }
+    updateMessages(history);
   };
 
   const sendMessage = async (event) => {
