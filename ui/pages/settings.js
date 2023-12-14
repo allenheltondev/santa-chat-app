@@ -72,7 +72,7 @@ const SettingsPage = () => {
           </Head>
           <Flex direction="column" width="100%" alignItems="center" height="90vh">
             <Card variation="elevated" width={{ base: '90%', large: '60%' }}>
-              <Heading level={3}>Hey {user.attributes.email}!</Heading>
+              <Heading level={5}>Hey {user.attributes.email}!</Heading>
             </Card>
             <Card variation="elevated" width={{ base: '90%', large: '60%' }}>
               <Flex direction="row" justifyContent="space-between" alignItems="center" marginBottom="1em">

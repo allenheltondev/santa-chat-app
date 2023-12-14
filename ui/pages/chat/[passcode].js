@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useContext } from 'react';
-import { Flex, Heading, Button, Text, View } from '@aws-amplify/ui-react';
+import { Flex, Heading, Button, Text, View, Card } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { CacheListFetch } from '@gomomento/sdk-web';
@@ -17,6 +17,7 @@ const Chat = () => {
   const [messages, setMessages] = useState([]);
   const [santaIsTyping, setSantaIsTyping] = useState(false);
   const [currentMessage, setCurrentMessage] = useState('');
+  const [topicSub, setTopicSub] = useState(null);
   const messagesRef = useRef(messages);
   const chatWindowRef = useRef(null);
   const currentMessageRef = useRef(currentMessage);
@@ -47,13 +48,12 @@ const Chat = () => {
     if (!topicClient) {
       await initialize(passcode);
     }
-    if (topicClient && passcode) {
+    if (topicClient && passcode && !topicSub) {
       const subscription = await topicClient?.subscribe(process.env.NEXT_PUBLIC_cacheName, passcode, {
         onItem: async (data) => await processMessage(data.value()),
         onError: (err) => console.error(err)
       });
-
-      console.log(subscription);
+      setTopicSub(subscription);
     }
   };
 
@@ -64,6 +64,7 @@ const Chat = () => {
         setSantaIsTyping(true);
         break;
       case 'done-typing':
+        console.log('done')
         setSantaIsTyping(false);
         currentMessageRef.current = '';
         setCurrentMessage('');
@@ -116,12 +117,14 @@ const Chat = () => {
         <title>{router.query.room} Chat with Santa</title>
       </Head>
       <Flex direction="row" alignItems="center" justifyContent="center" textAlign="center">
-        <Heading level={4}>Christmas Chat with Santa</Heading>
+        <Card variation="elevated" maxWidth={{ base: '95%', large: "600px" }} width="100%" padding=".75em">
+          <Heading level={5}>Christmas Chat with Santa</Heading>
+        </Card>
       </Flex>
       <Flex
         direction="column"
-        height={'calc(90vh - 100px)'}
-        maxWidth="600px"
+        height={{ base: '84vh', large: 'calc(90vh - 100px)' }}
+        maxWidth={{ base: '95%', large: "600px" }}
         margin="0 auto"
         marginTop="1em"
         border="1px solid #ddd"
@@ -131,12 +134,12 @@ const Chat = () => {
       >
         <ul style={{ flexGrow: 1, listStyleType: 'none', margin: 0, padding: '10px', overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse' }}>
           {santaIsTyping && (
-            <li key='santacurrentmessage' style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: '#D2E5A8' }}>
+            <li key='santacurrentmessage' style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: '#E1F5FE' }}>
               <strong>Santa: </strong>{currentMessage}
             </li>
           )}
           {messages.map((msg, index) => (
-            <li key={index} style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: msg.username === name ? '#f1f1f1' : '#D2E5A8' }}>
+            <li key={index} style={{ marginBottom: '10px', padding: '10px', borderRadius: '5px', backgroundColor: msg.username === name ? '#E6E6FA' : '#E1F5FE' }}>
               <strong>{msg.username}: </strong>{msg.message}
             </li>
           ))}

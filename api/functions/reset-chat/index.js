@@ -65,5 +65,6 @@ const updateCache = async (passcode, profile) => {
   }
 
   await cacheClient.delete(process.env.CACHE_NAME, `${passcode}-chat`);
+  await cacheClient.delete(process.env.CACHE_NAME, `${passcode}-chat-presents`);
   await cacheClient.delete(process.env.CACHE_NAME, passcode);
 };
