@@ -46,9 +46,11 @@ const SettingsPage = () => {
     setProfiles(response.profiles);
   };
 
-  const onClose = () => {
+  const onClose = (passcode) => {
     setShowAddProfile(false);
-    getProfiles();
+    if (passcode) {
+      router.push(`/profiles/${passcode}`);
+    }
   };
 
   const reset = async (event, passcode) => {

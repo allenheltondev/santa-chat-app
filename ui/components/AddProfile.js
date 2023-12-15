@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 
 const AddProfile = ({ onClose, token }) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [profile, setProfile] = useState({});
+  const [profile, setProfile] = useState({name: '', age: '', gender: 'female'});
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -20,7 +20,7 @@ const AddProfile = ({ onClose, token }) => {
     event.preventDefault();
     setIsSaving(true);
     try {
-      await API.post('Admin', '/profiles', {
+      const response = await API.post('Admin', '/profiles', {
         headers: {
           Authorization: `Bearer ${token}`
         },
@@ -30,6 +30,8 @@ const AddProfile = ({ onClose, token }) => {
           gender: profile.gender
         }
       });
+
+      onClose(response.passcode);
     } catch (err) {
       console.error(err);
       toast.error('Error creating profile', { position: 'top-right', autoClose: 10000, draggable: false, hideProgressBar: true, theme: 'colored' });
@@ -37,7 +39,7 @@ const AddProfile = ({ onClose, token }) => {
       setIsSaving(false);
     }
 
-    onClose(true);
+    onClose();
   };
 
   return (
@@ -59,7 +61,7 @@ const AddProfile = ({ onClose, token }) => {
         </Flex>
         <Flex direction="row" justifyContent="right">
           <Flex direction="row" alignItems="center" justifyContent="flex-end" paddingLeft="1em" paddingRight="1em" >
-            <Button onClick={() => onClose(false)}>Cancel</Button>
+            <Button onClick={() => onClose()}>Cancel</Button>
             <Button variation="primary" isLoading={isSaving} type="submit" form="profile_form" >Add</Button>
           </Flex>
         </Flex>
