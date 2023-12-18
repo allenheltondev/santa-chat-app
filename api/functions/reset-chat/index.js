@@ -18,10 +18,9 @@ exports.handler = async (event) => {
         sk: `profile#${passcode}`
       }),
       ConditionExpression: 'attribute_exists(pk) and attribute_exists(sk)',
-      UpdateExpression: 'REMOVE #status, #giftNumber',
+      UpdateExpression: 'REMOVE #status',
       ExpressionAttributeNames: {
-        '#status': 'status',
-        '#giftNumber': 'giftNumber'
+        '#status': 'status'
       },
       ReturnValues: 'ALL_NEW'
     }));

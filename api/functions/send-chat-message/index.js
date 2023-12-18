@@ -32,6 +32,9 @@ exports.handler = async (event) => {
       case 'done':
       case 'rejected':
         console.log(`Attempted to continue conversation ${passcode} after it was complete`);
+        break;
+      default:
+        console.error(`Something went wrong here. Passcode: ${passcode}, Status: ${profile?.status}`);
     }
 
     return { success: true };
@@ -226,11 +229,12 @@ const setupSantaForPresents = async (profile) => {
   {
     role: 'user',
     content: `[ELF] We need to work with ${profile.name} on which order to open their gifts. You can't just tell them the order though. Make them
-    prove they are nice. Ask about good deeds and what-if situations. They have to be very nice in order to be told which present to open next.
-    Only tell them one present to open at a time and make sure they prove themselves as nice between each present. When you say which present to
-    open, use the descriptions below to describe it. After you describe the last present you can say "that's all the
-    presents! Merry Christmas!" and end the conversation. Reply with "I understand" if you understand what we are doing. The next message will be
-    from ${profile.name}.
+    prove they are nice. Ask about good deeds and what-if situations. They have to be very nice in order to be told which present to open next. But
+    they need to be above and beyond nice, feel free to ask for elaboration if it's not exceptional. Only tell them one present to open at a time and
+    make sure they prove themselves as nice between each present. When you say which present to open, use the descriptions below to describe it.
+    After you describe the last present you can say "that's all the presents! Merry Christmas!" and end the conversation. Reply with "I understand"
+    if you understand what we are doing. The next message will be from ${profile.name}. Remember, you're already been chatting with them, so don't
+    introduce yourself, just keep carrying on the conversation.
     Presents:
     ${profile.presents.map(p => { return `${p.order}. ${p.description}`; }).join('\n\t')}`
   }];
