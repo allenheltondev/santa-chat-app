@@ -17,8 +17,9 @@ exports.handler = async (event) => {
     if (!profile)
       return { success: false };
 
-    switch (profile.status) {
+    switch (profile.status?.toLowerCase()) {
       case undefined:
+      case 'not started':
         await startNewConversation(profile);
         await continueConversation(profile, message, `${profile.sort}-chat`);
         await updateStatus(profile, 'proving-themselves');
