@@ -6,7 +6,7 @@ const eventbridge = new EventBridgeClient();
 
 exports.handler = async (event) => {
   try {
-    const body = Buffer.from(event.body, 'base64').toString('utf-8');
+    const { body } = event;
     const message = await validateRequest(body, event.headers['momento-signature']);
     if (!message || !message.token_id) {
       return {
